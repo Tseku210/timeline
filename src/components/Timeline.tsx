@@ -21,6 +21,7 @@ export default function Timeline() {
     useStore.getState().setContainerRef(ref);
   }, [ref]);
 
+  // TODO: Remove this later (this is for debugging purposes)
   useEffect(() => {
     const onKeydown = (e: KeyboardEvent) => {
       if (e.key === "f") {
@@ -34,14 +35,14 @@ export default function Timeline() {
 
   return (
     //TODO: add resize functionality using shadcn ref(https://github.com/bvaughn/react-resizable-panels)
-    <div className="w-full bg-slate-200 min-h-96">
+    <div id="container" className="w-full bg-slate-200 relative min-h-96">
       <Controls />
       <div
         ref={ref}
         className="w-full overflow-x-scroll relative overflow-auto h-full"
       >
-        <Ruler />
         <Playhead />
+        <Ruler />
         <Scenes />
       </div>
       <SceneControls />

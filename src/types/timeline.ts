@@ -1,3 +1,11 @@
+export type DraggableState =
+  | { type: "idle" }
+  | { type: "preview"; container: HTMLElement }
+  | { type: "dragging" };
+
+export const idleState: DraggableState = { type: "idle" };
+export const draggingState: DraggableState = { type: "dragging" };
+
 export interface Scene {
   id: string;
   background: SceneBackground;
@@ -19,6 +27,7 @@ export interface Transition {
 export interface Element {
   id: string;
   sceneId: string;
+  index?: number;
   timeline: Timeline;
 }
 

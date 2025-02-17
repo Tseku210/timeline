@@ -12,6 +12,7 @@ interface RulerProps {
 export default function Ruler({ height = 40 }: RulerProps) {
   const totalDuration = useStore((state) => state.totalDuration);
   const pps = useStore((state) => state.pps);
+  const viewportWidth = useStore((state) => state.viewportWidth);
   const { positionToTime } = useTimelinePosition();
 
   const handleScrub = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -53,7 +54,7 @@ export default function Ruler({ height = 40 }: RulerProps) {
       className="relative w-full bg-gray-100 cursor-pointer"
       style={{
         height: `${height}px`,
-        width: `${totalDuration * pps}px`,
+        width: `${Math.max(viewportWidth, totalDuration * pps)}px`,
       }}
       onClick={handleScrub}
     >

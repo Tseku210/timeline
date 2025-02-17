@@ -34,30 +34,25 @@ interface TimelineState {
 
   // scene related
   scenes: Scene[];
-  selectedScene: Scene | null;
-  setSelectedScene: (scene: Scene) => void;
+  selectedSceneIndex: number;
+  selectedSceneId: string | null;
+  setSelectedSceneIndex: (index: number) => void;
   setSelectedSceneById: (id: string) => void;
   addEmptyScene: () => void;
   addScene: (scene: Partial<Scene>) => void;
   updateScene: (id: string, scene: Partial<Scene>) => void;
+  updateSceneElements: (id: string, elements: Element[]) => void;
   removeScene: (id: string) => void;
   reorderScenes: (sourceIndex: number, destinationIndex: number) => void;
 
   // element related
-  selectedElement: Element | null;
-  elements: Element[];
-  setSelectedElement: (element: Element) => void;
-  setSelectedElementById: (id: string) => void;
-  updateSelectedItemById: (id: string, element: Partial<Element>) => void;
+  selectedElementIds: Array<string>;
+  selectElements: (ids: Array<string>) => void;
   updateElement: (id: string, element: Partial<Element>) => void;
   addElementToScene: (sceneId: string, element: Element) => void;
   addElement: (element: Element) => void;
   addEmptyElement: () => void;
-  reorderElements: (
-    sceneId: string,
-    sourceIndex: number,
-    destinationIndex: number,
-  ) => void;
+  reorderElements: (sourceIndex: number, destinationIndex: number) => void;
 }
 
 const useStore = create<TimelineState>((set, get) => {
@@ -76,6 +71,48 @@ const useStore = create<TimelineState>((set, get) => {
     },
     elements: [],
   });
+
+  // uses binary search for performance
+  // TODO: cache index (don't know how yet.)
+  const getCurrentSceneIndex = (
+    scenes: Scene[],
+    currentTime: number,
+  ): number => {
+    let low = 0;
+    let high = scenes.length - 1;
+
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const { startTime, duration } = scenes[mid].timeline;
+      const endTime = startTime + duration;
+
+      // If currentTime is within the current scene's time interval, return its index.
+      if (currentTime >= startTime && currentTime < endTime) {
+        get().setSelectedSceneIndex(mid);
+        return mid;
+      }
+      // If currentTime is before this scene, search left half.
+      else if (currentTime < startTime) {
+        high = mid - 1;
+      }
+      // Otherwise, search right half.
+      else {
+        low = mid + 1;
+      }
+    }
+
+    get().setSelectedSceneIndex(-1);
+    return -1;
+  };
+
+  // const scrollToEnd = () => {
+  //   const container = get().containerRef?.current;
+  //   if (!container) return;
+  //   container.scrollTo({
+  //     left: container.scrollWidth,
+  //     behavior: "smooth",
+  //   });
+  // };
 
   return {
     containerRef: null,
@@ -146,22 +183,21 @@ const useStore = create<TimelineState>((set, get) => {
       set((state) => ({ isExpandElements: !state.isExpandElements })),
 
     // scene related
-    selectedScene: null,
+    selectedSceneId: null,
+    selectedSceneIndex: -1,
     scenes: [getDefaultScene(0)],
-    setSelectedSceneById: (id) =>
-      set((state) => ({
-        selectedScene: state.scenes.find((scene) => scene.id === id) || null,
-      })),
-    setSelectedScene: (scene) => set({ selectedScene: scene }),
-    addEmptyScene: () =>
+    setSelectedSceneIndex: (index) => set({ selectedSceneIndex: index }),
+    setSelectedSceneById: (id) => set({ selectedSceneId: id }),
+    addEmptyScene: () => {
       set((state) => {
         const newScene = getDefaultScene(state.totalDuration);
         return {
           scenes: [...state.scenes, newScene],
           totalDuration: state.totalDuration + newScene.timeline.duration,
         };
-      }),
-    addScene: (scene) =>
+      });
+    },
+    addScene: (scene) => {
       set((state) => {
         const newScene = {
           ...getDefaultScene(state.totalDuration),
@@ -171,11 +207,36 @@ const useStore = create<TimelineState>((set, get) => {
           scenes: [...state.scenes, newScene],
           totalDuration: state.totalDuration + (scene.timeline?.duration || 10),
         };
-      }),
+      });
+    },
     updateScene: (id, scene) =>
       set((state) => {
         const updatedScenes = state.scenes.map((s) =>
-          s.id === id ? { ...s, ...scene } : s,
+          s.id === id
+            ? {
+                ...s,
+                ...scene,
+                // NOTE: only updates elements when `timeline` is changed.
+                elements: scene.timeline
+                  ? s.elements.map((el) => {
+                      if (!scene.timeline) return el;
+                      const newDuration =
+                        el.timeline.duration +
+                        (scene.timeline.duration - s.timeline.duration);
+                      const newStartTime =
+                        el.timeline.startTime +
+                        (scene.timeline.startTime - s.timeline.startTime);
+                      return {
+                        ...el,
+                        timeline: {
+                          startTime: newStartTime,
+                          duration: newDuration,
+                        },
+                      };
+                    })
+                  : s.elements,
+              }
+            : s,
         );
         return {
           scenes: updatedScenes,
@@ -186,6 +247,12 @@ const useStore = create<TimelineState>((set, get) => {
           ),
         };
       }),
+    updateSceneElements: (id, elements) =>
+      set((state) => ({
+        scenes: state.scenes.map((scene) =>
+          scene.id === id ? { ...scene, elements: elements } : scene,
+        ),
+      })),
     removeScene: (id) =>
       set((state) => {
         const updatedScenes = state.scenes.filter((s) => s.id !== id);
@@ -217,89 +284,117 @@ const useStore = create<TimelineState>((set, get) => {
       }),
 
     // element related
-    selectedElement: null,
-    elements: [],
-    setSelectedElement: (element) => set({ selectedElement: element }),
-    setSelectedElementById: (id) =>
-      set({
-        selectedElement: get().elements.find((el) => el.id === id) || null,
-      }), // TODO: it should query from currently selected scene's elements list when the scene feature is implemented
-    updateSelectedItemById: (id, element) =>
-      set((state) => ({
-        elements: state.elements.map((el) =>
-          el.id === id ? { ...el, ...element } : el,
-        ),
-      })),
-    // FIX: elements should always be bound to a scene. So, it needs optimization.
+    selectedElementIds: [],
+    selectElements: (ids) => set({ selectedElementIds: ids }),
     updateElement: (id, element) =>
-      set((state) => ({
-        // update element in global list
-        elements: state.elements.map((el) =>
+      set((state) => {
+        const currentSceneIndex = getCurrentSceneIndex(
+          state.scenes,
+          state.currentTime,
+        );
+        if (currentSceneIndex === -1) return {};
+
+        // Update element only in the current scene.
+        const currentScene = state.scenes[currentSceneIndex];
+        const updatedElements = currentScene.elements.map((el) =>
           el.id === id ? { ...el, ...element } : el,
-        ),
-        // update element within each scene (if present)
-        scenes: state.scenes.map((scene) => {
-          if (scene.elements) {
-            return {
-              ...scene,
-              elements: scene.elements.map((el) =>
-                el.id === id ? { ...el, ...element } : el,
-              ),
-            };
-          }
-          return scene;
-        }),
-      })),
-    addElement: (element) => {
-      const selectedScene = get().selectedScene;
-      if (!selectedScene) return;
+        );
 
-      set((state) => ({
-        scenes: state.scenes.map((scene) =>
-          scene.id === selectedScene.id
-            ? { ...scene, elements: [...(scene.elements || []), element] }
-            : scene,
-        ),
-      }));
-    },
-    addEmptyElement: () => {
-      const selectedScene = get().selectedScene;
-      if (!selectedScene) return;
+        // Replace the current scene with its updated version.
+        const updatedScene = { ...currentScene, elements: updatedElements };
+        const updatedScenes = [...state.scenes];
+        updatedScenes[currentSceneIndex] = updatedScene;
 
-      set((state) => ({
-        scenes: state.scenes.map((scene) =>
-          scene.id === selectedScene.id
-            ? {
-                ...scene,
-                elements: [
-                  ...(scene.elements || []),
-                  generateEmptyElement(scene),
-                ],
-              }
-            : scene,
-        ),
-      }));
-    },
-    addElementToScene: (sceneId, element) =>
-      set((state) => ({
-        scenes: state.scenes.map((scene) =>
-          scene.id === sceneId
-            ? { ...scene, elements: [...(scene.elements || []), element] }
-            : scene,
-        ),
-      })),
-    reorderElements: (sceneId, sourceIndex, destinationIndex) =>
-      set((state) => ({
-        scenes: state.scenes.map((scene) => {
-          if (scene.id === sceneId && scene.elements) {
-            const newElements = [...scene.elements];
-            const [removed] = newElements.splice(sourceIndex, 1);
-            newElements.splice(destinationIndex, 0, removed);
-            return { ...scene, elements: newElements };
-          }
-          return scene;
-        }),
-      })),
+        return { scenes: updatedScenes };
+      }),
+    addElement: (element) =>
+      set((state) => {
+        const currentSceneIndex = getCurrentSceneIndex(
+          state.scenes,
+          state.currentTime,
+        );
+        if (currentSceneIndex === -1) return {};
+
+        const currentScene = state.scenes[currentSceneIndex];
+        const updatedElements = [...currentScene.elements, element];
+
+        const updatedScene = { ...currentScene, elements: updatedElements };
+        const updatedScenes = [...state.scenes];
+        updatedScenes[currentSceneIndex] = updatedScene;
+
+        return { scenes: updatedScenes };
+      }),
+
+    addEmptyElement: () =>
+      set((state) => {
+        const currentSceneIndex = getCurrentSceneIndex(
+          state.scenes,
+          state.currentTime,
+        );
+        if (currentSceneIndex === -1) return {};
+
+        const currentScene = state.scenes[currentSceneIndex];
+        const updatedElements = [
+          ...currentScene.elements,
+          generateEmptyElement(currentScene),
+        ];
+
+        const updatedScene = { ...currentScene, elements: updatedElements };
+        const updatedScenes = [...state.scenes];
+        updatedScenes[currentSceneIndex] = updatedScene;
+
+        return { scenes: updatedScenes };
+      }),
+    addElementToScene: (element) =>
+      set((state) => {
+        const currentSceneIndex = getCurrentSceneIndex(
+          state.scenes,
+          state.currentTime,
+        );
+        if (currentSceneIndex === -1) return {};
+
+        const currentScene = state.scenes[currentSceneIndex];
+        const updatedScene = {
+          ...currentScene,
+          elements: [...(currentScene.elements || []), element],
+        } as Scene;
+        const updatedScenes = [...state.scenes];
+        updatedScenes[currentSceneIndex] = updatedScene;
+
+        return { scenes: updatedScenes };
+      }),
+    reorderElements: (sourceIndex, destinationIndex) =>
+      set((state) => {
+        const currentIndex = getCurrentSceneIndex(
+          state.scenes,
+          state.currentTime,
+        );
+        if (currentIndex === -1) return {};
+
+        const currentScene = state.scenes[currentIndex];
+        if (!currentScene.elements) return {};
+
+        const newElements = [...currentScene.elements];
+        const [removed] = newElements.splice(sourceIndex, 1);
+        newElements.splice(destinationIndex, 0, removed);
+
+        // Determine the range that needs to be updated.
+        const start = Math.min(sourceIndex, destinationIndex);
+        const end = Math.max(sourceIndex, destinationIndex);
+        // Only update the index property for elements in the affected range.
+        for (let i = start; i <= end; i++) {
+          newElements[i] = {
+            ...newElements[i],
+            index: i,
+          };
+        }
+
+        const updatedScene = { ...currentScene, elements: newElements };
+        const updatedScenes = [...state.scenes];
+        updatedScenes[currentIndex] = updatedScene;
+
+        return { scenes: updatedScenes };
+      }),
   };
 });
 

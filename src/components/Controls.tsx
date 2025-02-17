@@ -1,19 +1,18 @@
 import useTimeline from "@/hooks/useTimeline";
 import useStore from "../store/useStore";
-import { formatSecondsToString } from "@/lib/timeline";
+import ControlsTimeIndicator from "./ControlsTimeIndicator";
 
 export default function Controls() {
   const isPlaying = useStore((state) => state.isPlaying);
+  const pps = useStore((state) => state.pps);
   const play = useStore((state) => state.play);
   const pause = useStore((state) => state.pause);
   const zoomIn = useStore((state) => state.zoomIn);
   const zoomOut = useStore((state) => state.zoomOut);
-  const currentTime = useStore((state) => state.currentTime);
-  const totalDuration = useStore((state) => state.totalDuration);
   const { canZoomIn, canZoomOut } = useTimeline();
 
   return (
-    <div className="w-full grid grid-cols-3 place-items-center py-3">
+    <div className="w-full h-16 grid grid-cols-3 place-items-center">
       <div />
       <div className="flex items-center justify-center gap-0">
         <div className="space-x-2">
@@ -24,7 +23,7 @@ export default function Controls() {
           <button>{">>"}</button>
         </div>
         {/* TODO: maybe extract time depiction into a component for optimized rendering */}
-        <span>{`${formatSecondsToString(currentTime)}/${formatSecondsToString(totalDuration)}`}</span>
+        <ControlsTimeIndicator />
       </div>
       <div className="space-x-2">
         <button

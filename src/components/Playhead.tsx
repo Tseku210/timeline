@@ -1,22 +1,23 @@
-import { useRef } from "react";
+import { useState } from "react";
 import useStore from "@/store/useStore";
 import useTimelinePosition from "@/hooks/useTImelinePosition";
+import PlayheadTimeIndicator from "./PlayheadTimeIndicator";
 
 export default function Playhead() {
   const containerRef = useStore((state) => state.containerRef);
   const currentTime = useStore((state) => state.currentTime);
   const { timeToPosition, positionToTime } = useTimelinePosition();
-  const isDragging = useRef(false);
+  const [isDragging, setDragging] = useState(false);
 
   const handleDrag = (e: React.MouseEvent) => {
     if (!containerRef || !containerRef.current) return;
     e.preventDefault();
-    isDragging.current = true;
+    setDragging(true);
 
     const containerRect = containerRef.current.getBoundingClientRect();
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging.current || !containerRef.current) return;
+      if (!containerRef.current) return;
 
       const newTime = positionToTime(
         containerRef.current.scrollLeft + e.clientX - containerRect.left,
@@ -26,7 +27,7 @@ export default function Playhead() {
     };
 
     const handleMouseUp = () => {
-      isDragging.current = false;
+      setDragging(false);
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
@@ -43,6 +44,11 @@ export default function Playhead() {
       }}
       onMouseDown={handleDrag}
     >
+      <PlayheadTimeIndicator
+        isDragging={isDragging}
+        position={timeToPosition(currentTime)}
+        time={currentTime}
+      />
       <div className="size-[10px] bg-[#FFAA00]"></div>
     </div>
   );

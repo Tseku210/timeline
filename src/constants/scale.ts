@@ -71,3 +71,4 @@ export const BASE_ZOOM_INDEX = 3;
 export const ZOOM = [0.1, 0.2, 0.5, 1, 2, 5, 10];
 export const INTERVALS = [1, 2, 5, 10, 15, 30, 60];
 export const DEFAULT_SCENE_DURATION = 10;
+export const TIMELINE_PADDING = 16;

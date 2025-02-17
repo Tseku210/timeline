@@ -7,7 +7,7 @@ export default function TimelineTimeIndicator({ position }: Props) {
   return (
     <div
       style={{ left: `${position}px` }}
-      className="absolute top-0 h-full w-0 border border-gray-500 border-dashed pointer-events-none"
+      className="absolute z-10 top-0 h-full w-0 border border-gray-500 border-dashed pointer-events-none"
     />
   );
 }
