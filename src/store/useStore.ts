@@ -7,6 +7,7 @@ import {
 } from "../constants/scale";
 import { Element, Scene } from "@/types/timeline";
 import { generateId } from "@/lib/utils";
+import { binarySearch, reorder } from "@/lib/timeline";
 
 interface TimelineState {
   containerRef: React.MutableRefObject<HTMLDivElement | null> | null;
@@ -46,24 +47,42 @@ interface TimelineState {
   reorderScenes: (sourceIndex: number, destinationIndex: number) => void;
 
   // element related
+  visibleElements: Array<Element>;
   selectedElementIds: Array<string>;
   selectElements: (ids: Array<string>) => void;
-  updateElement: (id: string, element: Partial<Element>) => void;
+  updateElement: (
+    sceneId: string,
+    id: string,
+    element: Partial<Element>,
+  ) => void;
   addElementToScene: (sceneId: string, element: Element) => void;
   addElement: (element: Element) => void;
   addEmptyElement: () => void;
-  reorderElements: (sourceIndex: number, destinationIndex: number) => void;
+  reorderElements: (
+    sourceIndex: number,
+    destinationIndex: number,
+    sceneId?: string,
+  ) => void;
 }
 
 const useStore = create<TimelineState>((set, get) => {
-  const generateEmptyElement = ({ id, timeline }: Scene): Element => ({
+  const generateEmptyElement = ({
+    id,
+    timeline,
+    elements,
+  }: Scene): Element => ({
     id: generateId(),
     sceneId: id,
+    index: elements.length,
     timeline: timeline,
   });
 
-  const getDefaultScene = (startTime: number): Scene => ({
+  const generateDefaultScene = (
+    startTime: number,
+    isFirst: boolean = false,
+  ): Scene => ({
     id: generateId(),
+    index: isFirst ? 0 : get().scenes.length,
     background: { type: "color", color: "#ff3311" },
     timeline: {
       startTime: startTime,
@@ -105,15 +124,6 @@ const useStore = create<TimelineState>((set, get) => {
     return -1;
   };
 
-  // const scrollToEnd = () => {
-  //   const container = get().containerRef?.current;
-  //   if (!container) return;
-  //   container.scrollTo({
-  //     left: container.scrollWidth,
-  //     behavior: "smooth",
-  //   });
-  // };
-
   return {
     containerRef: null,
     currentTime: 0,
@@ -152,7 +162,7 @@ const useStore = create<TimelineState>((set, get) => {
     play: () => {
       if (get().isPlaying) return;
 
-      // play from beginning if currentTime == totalDuration
+      // play from beginning if already at the end
       if (get().currentTime >= get().totalDuration) {
         get().setCurrentTime(0);
       }
@@ -168,7 +178,28 @@ const useStore = create<TimelineState>((set, get) => {
         }
 
         const elapsed = performance.now() / 1000 - startTime;
-        get().setCurrentTime(elapsed);
+        set({ currentTime: elapsed });
+
+        const scenes = get().scenes;
+        const currentScene = binarySearch(scenes, elapsed, (scene) => ({
+          start: scene.timeline.startTime,
+          end: scene.timeline.startTime + scene.timeline.duration,
+        }));
+
+        if (!currentScene) {
+          requestAnimationFrame(frame);
+          return;
+        }
+
+        get().setSelectedSceneIndex(currentScene.index);
+
+        const visibleElements = currentScene.elements.filter(
+          (el) =>
+            elapsed >= el.timeline.startTime &&
+            elapsed < el.timeline.startTime + el.timeline.duration,
+        );
+        set({ visibleElements: visibleElements });
+
         requestAnimationFrame(frame);
       };
 
@@ -185,12 +216,12 @@ const useStore = create<TimelineState>((set, get) => {
     // scene related
     selectedSceneId: null,
     selectedSceneIndex: -1,
-    scenes: [getDefaultScene(0)],
+    scenes: [generateDefaultScene(0, true)],
     setSelectedSceneIndex: (index) => set({ selectedSceneIndex: index }),
     setSelectedSceneById: (id) => set({ selectedSceneId: id }),
     addEmptyScene: () => {
       set((state) => {
-        const newScene = getDefaultScene(state.totalDuration);
+        const newScene = generateDefaultScene(state.totalDuration);
         return {
           scenes: [...state.scenes, newScene],
           totalDuration: state.totalDuration + newScene.timeline.duration,
@@ -200,7 +231,7 @@ const useStore = create<TimelineState>((set, get) => {
     addScene: (scene) => {
       set((state) => {
         const newScene = {
-          ...getDefaultScene(state.totalDuration),
+          ...generateDefaultScene(state.totalDuration),
           ...scene,
         };
         return {
@@ -284,14 +315,15 @@ const useStore = create<TimelineState>((set, get) => {
       }),
 
     // element related
+    visibleElements: [],
     selectedElementIds: [],
     selectElements: (ids) => set({ selectedElementIds: ids }),
-    updateElement: (id, element) =>
+    updateElement: (sceneId, id, element) =>
       set((state) => {
-        const currentSceneIndex = getCurrentSceneIndex(
-          state.scenes,
-          state.currentTime,
+        const currentSceneIndex = state.scenes.findIndex(
+          (scene) => scene.id === sceneId,
         );
+        console.log("active", currentSceneIndex);
         if (currentSceneIndex === -1) return {};
 
         // Update element only in the current scene.
@@ -363,35 +395,39 @@ const useStore = create<TimelineState>((set, get) => {
 
         return { scenes: updatedScenes };
       }),
-    reorderElements: (sourceIndex, destinationIndex) =>
+    reorderElements: (sourceIndex, destinationIndex, sceneId) =>
       set((state) => {
-        const currentIndex = getCurrentSceneIndex(
-          state.scenes,
-          state.currentTime,
-        );
+        const currentIndex = sceneId
+          ? state.scenes.findIndex((scene) => scene.id === sceneId)
+          : getCurrentSceneIndex(state.scenes, state.currentTime);
         if (currentIndex === -1) return {};
 
         const currentScene = state.scenes[currentIndex];
         if (!currentScene.elements) return {};
 
-        const newElements = [...currentScene.elements];
-        const [removed] = newElements.splice(sourceIndex, 1);
-        newElements.splice(destinationIndex, 0, removed);
+        const orderedElements = reorder({
+          list: currentScene.elements,
+          startIndex: sourceIndex,
+          finishIndex: destinationIndex,
+        });
+
+        console.log("hoho", orderedElements);
 
         // Determine the range that needs to be updated.
         const start = Math.min(sourceIndex, destinationIndex);
         const end = Math.max(sourceIndex, destinationIndex);
         // Only update the index property for elements in the affected range.
         for (let i = start; i <= end; i++) {
-          newElements[i] = {
-            ...newElements[i],
+          orderedElements[i] = {
+            ...orderedElements[i],
             index: i,
           };
         }
 
-        const updatedScene = { ...currentScene, elements: newElements };
+        const updatedScene = { ...currentScene, elements: orderedElements };
         const updatedScenes = [...state.scenes];
         updatedScenes[currentIndex] = updatedScene;
+        console.log(updatedScenes);
 
         return { scenes: updatedScenes };
       }),

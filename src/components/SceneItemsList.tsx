@@ -1,36 +1,26 @@
 import useStore from "@/store/useStore";
 import { memo } from "react";
-import { List } from "react-movable";
 import SceneItem from "./SceneItem";
+import useTimelinePosition from "@/hooks/useTImelinePosition";
 
 function SceneItemsList() {
   const scenes = useStore((state) => state.scenes);
-  const reorderElements = useStore((state) => state.reorderElements);
+  const { timeToPosition } = useTimelinePosition();
+
   return (
     <div className="flex">
       {scenes.map((scene) => (
-        <List
-          lockVertically
-          transitionDuration={0}
+        <div
           key={scene.id}
-          values={scene.elements}
-          onChange={({ oldIndex, newIndex }) =>
-            reorderElements(oldIndex, newIndex)
-          }
-          renderList={({ children, props }) => (
-            <div className="hello w-fit" {...props}>
-              {children}
-            </div>
-          )}
-          renderItem={({ value, props }) => (
-            <SceneItem
-              {...props}
-              key={props.key}
-              scene={scene}
-              element={value}
-            />
-          )}
-        />
+          className="flex relative flex-col gap-2"
+          style={{
+            width: `${timeToPosition(scene.timeline.duration)}px`,
+          }}
+        >
+          {scene.elements.map((element) => (
+            <SceneItem key={element.id} scene={scene} element={element} />
+          ))}
+        </div>
       ))}
     </div>
   );

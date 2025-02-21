@@ -4,6 +4,8 @@ import TimelineTimeIndicator from "./TimelineTimeIndicator";
 import useTimelinePosition from "@/hooks/useTImelinePosition";
 import SceneItemsList from "./SceneItemsList";
 import ScenesList from "./ScenesList";
+import useDNDMonitor from "@/hooks/useDNDMonitor";
+import SceneItemsDNDList from "./SceneItemsDNDLIst";
 
 export default function Scenes() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -12,6 +14,7 @@ export default function Scenes() {
   const pps = useStore((state) => state.pps);
   const [hoverPosition, setHoverPosition] = useState<number | null>(null);
   const { positionToTime } = useTimelinePosition();
+  useDNDMonitor();
 
   const handleMoveIndicator = (e: React.MouseEvent) => {
     if (!containerRef.current) return;
@@ -44,6 +47,7 @@ export default function Scenes() {
       <TimelineTimeIndicator position={hoverPosition} />
       <ScenesList />
       <SceneItemsList />
+      {/* <SceneItemsDNDList /> */}
 
       {/* Avatars */}
 
