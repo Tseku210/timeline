@@ -2,9 +2,12 @@
 
 This is a timeline implementation in progress. It was inspired by [Heygen Studio](https://app.heygen.com).
 
-**Stack**
+<img width="1715" alt="image" src="https://github.com/user-attachments/assets/4298c2a5-788f-4411-9b2e-3a7f26257a3d" />
 
-- NextJS
+## Stack
+
+- React
+- Typescript
 - Bun
 - Vite
 - TailwindCSS v4
@@ -78,3 +81,9 @@ export default tseslint.config({
   },
 });
 ```
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
+Copyright (c) 2025 Tsenguun Otgonbaatar
