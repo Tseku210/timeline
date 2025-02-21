@@ -1,5 +1,3 @@
-import { Element } from "@/types/timeline";
-
 /**
  * Converts time in seconds to pixels based on the provided pps (pixels per second).
  */

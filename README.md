@@ -1,6 +1,6 @@
 # Timeline implementation
 
-This is a timeline implementation in progress. It was inspired by the Heygen Studio.
+This is a timeline implementation in progress. It was inspired by [Heygen Studio](https://app.heygen.com).
 
 **Stack**
 
@@ -8,6 +8,10 @@ This is a timeline implementation in progress. It was inspired by the Heygen Stu
 - Bun
 - Vite
 - TailwindCSS v4
+- Pragmatic-drag-and-drop
+- React-moveable
+- React-selecto
+- Zustand
 - and a few more
 
 ## Features
@@ -15,10 +19,13 @@ This is a timeline implementation in progress. It was inspired by the Heygen Stu
 - [x] Dynamic playhead and ruler
 - [x] Resizable items
 - [x] Play functionality
-- [ ] Scenes
-- [ ] Items
-- [ ] Hide items
-- [ ] High performance
+- [x] Scenes
+- [x] Items
+- [x] Resizable items
+- [x] Draggable items
+- [x] Ability to reorder items
+- [x] High performance
+- [ ] Toggle hiding items
 - [ ] Editing canvas
 
 # React + TypeScript + Vite
